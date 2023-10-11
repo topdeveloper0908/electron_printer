@@ -8,6 +8,7 @@ import {
   BrowserWindow,
 } from 'electron';
 export type Channels = 'ipc-example' | 'print' | 'print-complete';
+import path from 'path';
 
 const electronHandler = {
   ipcRenderer: {
@@ -25,6 +26,11 @@ const electronHandler = {
     },
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
+    },
+  },
+  utils: {
+    getFilePath(file: string) {
+      return ipcRenderer.sendSync('get-file-path', file);
     },
   },
   store: {

@@ -106,7 +106,7 @@ export default function Print() {
         }
         orders.push(newOrder);
         window.electron.store.set('ORDERS', orders);
-        handlePrint(newOrder);
+        handlePrint();
         setSavedOrders(orders);
       } catch (error) {
         setIsRequesting(false);
@@ -118,12 +118,84 @@ export default function Print() {
     }
     return prev - 1;
   }
-
-  const handlePrint = (order: IOrder) => {
+  const handlePrint = () => {
     setPrevMode(mode);
     setMode(MODES.PRINT);
+    let style =
+      'text-align: left; display: flex; margin: 5px 0px; padding: 0px; justify-content: space-between; width: 90vw;';
     if (!messageSentRef.current) {
-      window.electron.ipcRenderer.sendMessage('print');
+      window.electron.ipcRenderer.sendMessage('print', [
+        {
+          type: 'image',
+          path: window.electron.utils.getFilePath('logo.png'), // path of image
+          position: 'left', // position of image: 'left' | 'center' | 'right'
+          width: 'auto', // width of image in px; default: auto
+          height: '50px', // width of image in px; default: 50 or '50px'
+        },
+        {},
+        // order id
+        {
+          type: 'text',
+          value: `Order: <strong>${activeOrder?.id}</strong>`,
+          fontsize: 4,
+          style,
+        },
+        {
+          type: 'text',
+          value: `Name: <strong>${activeOrder?.json?.l_vorname} ${activeOrder?.json?.l_nachname}</strong>`,
+          fontsize: 4,
+          style,
+        },
+        {
+          type: 'text',
+          value: `Address: <strong>${activeOrder?.json?.l_adresse}</strong>`,
+          fontsize: 4,
+          style,
+        },
+        // activeOrder? time
+        {
+          type: 'text',
+          value: `Time: <strong>${Intl.DateTimeFormat('de-AT', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          }).format(activeOrder?.time)}<strong>`,
+          fontsize: 4,
+          style,
+        },
+        {
+          type: 'table',
+          // style the table
+          style:
+            'border: 1px solid #ddd; text-align: center; width: 90vw; margin: 10px 0px;',
+          // list of the columns to be rendered in the table header
+          tableHeader: ['Name', 'Price', 'Qty', 'Total'],
+          // multi dimensional array depicting the rows and columns of the table body
+          tableBody: [
+            ...(activeOrder?.bestell_zeilen.map((item) => [
+              `<span style="text-align: left; width: 100%; display block; margin: 0px; padding: 0px;"
+              >${item.name}</span>`,
+              item.preis,
+              item.menge,
+              item.preis * item.menge,
+            ]) as any),
+            [
+              'Total',
+              activeOrder?.bestell_zeilen.reduce((a, b) => a + b.preis, 0),
+              activeOrder?.bestell_zeilen.reduce((a, b) => a + b.menge, 0),
+              activeOrder?.bestell_zeilen.reduce(
+                (a, b) => a + b.preis * b.menge,
+                0,
+              ),
+            ],
+          ],
+          // custom style for the table body
+          tableBodyStyle: 'text-align: left;',
+        },
+      ]);
       setMessageSent(true); // Update the state
       messageSentRef.current = true; // Update the ref
     }
@@ -228,7 +300,8 @@ export default function Print() {
                       <button
                         className="bg-green-500 text-white p-3 rounded"
                         onClick={() => {
-                          handlePrint(order);
+                          setActiveOrder(order);
+                          handlePrint();
                         }}
                       >
                         <BsPrinter />

@@ -15,6 +15,10 @@ import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import Store from 'electron-store';
+import {
+  PosPrintOptions,
+  PosPrinter,
+} from '@alvarosacari/electron-pos-printer';
 
 const store = new Store();
 
@@ -31,27 +35,39 @@ let mainWindow: BrowserWindow | null = null;
 ipcMain.on('electron-store-get', async (event, val) => {
   event.returnValue = store.get(val);
 });
+
 ipcMain.on('electron-store-set', async (event, key, val) => {
   store.set(key, val);
 });
 
-ipcMain.on('print', async (event) => {
-  var options: Electron.WebContentsPrintOptions = {
+// get file path
+ipcMain.on('get-file-path', async (event, val) => {
+  event.returnValue = path.join(__dirname, '../../assets/', val);
+});
+
+ipcMain.on('print', async (event, data) => {
+  const printers = await mainWindow?.webContents.getPrintersAsync();
+  const options: PosPrintOptions = {
+    preview: false, // Preview in window or print
+    margin: '0 0 0 0', // margin of content body
+    copies: 1, // Number of copies to print
+    timeOutPerLine: 1000,
     silent: true,
-    printBackground: true,
-    color: true,
-    margins: {
-      marginType: 'none',
-    },
-    landscape: false,
-    pagesPerSheet: 1,
-    collate: false,
-    copies: 1,
-    pageSize: 'A4',
+    printerName: printers ? printers[0].name : '',
+    pageSize: { height: 250000, width: 81000 },
   };
-  mainWindow?.webContents.print(options, (success, errorType) => {
-    return event.reply('print', { success, errorType });
-  });
+
+  if (options.printerName != '') {
+    await PosPrinter.print(data, options)
+      .then(() => {
+        return event.reply('print', { success: true });
+      })
+      .catch((error) => {
+        return event.reply('print', { success: false, error });
+      });
+  } else {
+    return event.reply('print', { success: false, error: 'No printer found' });
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -94,8 +110,8 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
-    width: 720,
-    height: 720,
+    width: 8.27 * 300,
+    height: 11.69 * 300,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       preload: app.isPackaged
